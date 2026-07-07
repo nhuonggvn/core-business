@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict, deque
 from typing import Dict, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time as datetime_time
 
 from ai_client import call_ai_vision_detect
 
@@ -13,6 +13,25 @@ logger = logging.getLogger(__name__)
 access_denied_counter: Dict[str, int] = defaultdict(int)
 # Lưu lịch sử sự kiện gần đây (tối đa 500 sự kiện)
 recent_events: deque = deque(maxlen=500)
+
+ALLOWED_HOURS = (datetime_time(6, 0), datetime_time(22, 0))
+
+def is_outside_hours(timestamp_str: str) -> bool:
+    """
+    Kiểm tra xem timestamp truyền vào có nằm ngoài giờ cho phép (06:00 - 22:00) hay không.
+    """
+    try:
+        # Hỗ trợ phân tích timestamp dạng ISO 8601
+        if timestamp_str.endswith('Z'):
+            dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        else:
+            dt = datetime.fromisoformat(timestamp_str)
+        ev_time = dt.time()
+        return not (ALLOWED_HOURS[0] <= ev_time <= ALLOWED_HOURS[1])
+    except Exception:
+        # Fallback về giờ hiện tại nếu lỗi định dạng
+        now_time = datetime.now().time()
+        return not (ALLOWED_HOURS[0] <= now_time <= ALLOWED_HOURS[1])
 
 def make_alert(
     origin_event: Dict,
@@ -107,8 +126,17 @@ async def handle_camera_event(event: Dict, ai_vision_url: str) -> Optional[Dict]
     risk_level = vision_result.get("risk_level", "low")
     label = vision_result.get("label", "")
     confidence = vision_result.get("confidence", 0.0)
+    unknown_person = vision_result.get("unknown_person", False)
     
-    # Kiểm tra sự kiện denied gần đây (trong vòng 30 giây) tại cùng khu vực
+    # 1. Phát hiện người lạ ngoài giờ -> Cảnh báo xâm nhập mức khẩn cấp (critical)
+    is_outside = is_outside_hours(event.get("timestamp", ""))
+    if (unknown_person or label == "person") and confidence >= 0.8 and is_outside:
+        return make_alert(
+            event, "intrusion", "critical",
+            f"Phát hiện xâm nhập ngoài giờ tại {location} (confidence={confidence:.2f})"
+        )
+    
+    # 2. Nghi đột nhập: người lạ xuất hiện + có sự kiện quẹt thẻ thất bại gần đây cùng khu vực
     now = time.time()
     has_denied_nearby = any(
         ev.get("access_result") == "denied" and ev.get("location") == location
@@ -116,16 +144,20 @@ async def handle_camera_event(event: Dict, ai_vision_url: str) -> Optional[Dict]
         if now - ts <= 30
     )
     
-    if label == "person" and confidence >= 0.8 and risk_level in ("medium", "high") and has_denied_nearby:
+    if (unknown_person or label == "person") and confidence >= 0.8 and risk_level in ("medium", "high") and has_denied_nearby:
         return make_alert(
             event, "intrusion", "critical",
             f"Nghi đột nhập: người lạ + quẹt thẻ thất bại gần đây tại {location} (confidence={confidence:.2f})"
         )
-    elif label == "person" and confidence >= 0.8 and risk_level in ("medium", "high"):
+    
+    # 3. Người lạ xuất hiện trong giờ -> Cảnh báo người đáng ngờ mức cao (high)
+    elif (unknown_person or label == "person") and confidence >= 0.8 and risk_level in ("medium", "high"):
         return make_alert(
             event, "suspicious_person", "high",
             f"Phát hiện người đáng ngờ tại {location} (risk={risk_level})"
         )
+        
+    # 4. Hoạt động đáng ngờ (risk cao nhưng độ tin cậy thấp) -> Cảnh báo mức trung bình (medium)
     elif risk_level == "high" and confidence < 0.8:
         return make_alert(
             event, "suspicious_activity", "medium",

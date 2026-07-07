@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import ssl
 import paho.mqtt.client as mqtt
 
 from event_handlers import handle_sensor_event, handle_access_event, handle_camera_event
@@ -27,10 +28,12 @@ def publish_alert(alert: dict) -> None:
     if _mqtt_client and _mqtt_client.is_connected():
         payload = json.dumps(alert)
         _mqtt_client.publish(TOPIC_ALERT, payload)
+        # Publish đồng thời lên topic có chữ s cho Analytics (A5)
+        _mqtt_client.publish("smart-campus/events/alerts", payload)
         _mqtt_client.publish(TOPIC_POLICY, payload)
         logger.info(f"[MQTT] Published alert: {alert.get('alert_type')}")
 
-def on_mqtt_connect(client, userdata, flags, rc):
+def on_mqtt_connect(client, userdata, flags, rc, properties=None):
     logger.info(f"[MQTT] Connected with result code {rc}")
     client.subscribe([
         (TOPIC_SENSOR, 0),
@@ -73,9 +76,13 @@ def start_mqtt_client(loop: asyncio.AbstractEventLoop) -> mqtt.Client:
     global _mqtt_client, _event_loop
     _event_loop = loop
     
-    client = mqtt.Client()
+    # Khởi tạo MQTT client hỗ trợ SSL/TLS khi kết nối đám mây
+    client = mqtt.Client(protocol=mqtt.MQTTv5)
     if MQTT_USERNAME:
         client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+        
+    if MQTT_PORT == 8883:
+        client.tls_set(tls_version=ssl.PROTOCOL_TLS_CLIENT)
         
     client.on_connect = on_mqtt_connect
     client.on_message = on_mqtt_message
