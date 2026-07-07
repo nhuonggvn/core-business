@@ -12,6 +12,8 @@ services:
         condition: service_healthy
       ai-service:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - team-internal
       - class-net
@@ -62,6 +64,20 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # Redis — Luu tru bo dem Bruteforce Sliding Window ben vung
+  redis:
+    image: redis:7-alpine
+    container_name: fit4110-redis-a6
+    ports:
+      - "6379:6379"
+    networks:
+      - team-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   team-internal:

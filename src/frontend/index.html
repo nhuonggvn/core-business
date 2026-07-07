@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Trung tâm Core Business A6 - Smart Campus" />
+    <title>Core Business A6 - Smart Campus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="/dashboard/css/dashboard.css" />
+</head>
+<body class="light-theme">
+
+<div class="app-wrapper">
+
+    <main class="grid-layout">
+        
+        <!-- ===== CỘT TRÁI: ĐIỀU KHIỂN & THỐNG KÊ ===== -->
+        <aside class="column-left">
+            <div class="brand-box">
+                <h1 class="brand-title">SMART CAMPUS</h1>
+                <h2 class="brand-subtitle">TRẠM KIỂM SOÁT A6</h2>
+                <div class="system-status">
+                    <span class="pulse-dot"></span> HỆ THỐNG ĐANG CHẠY
+                </div>
+            </div>
+
+            <div class="action-grid">
+                <button class="btn-action btn-theme-toggle" id="btn-theme" type="button">Chế độ tối</button>
+                <button class="btn-action btn-danger" id="btn-evacuate" type="button">SƠ TÁN</button>
+            </div>
+
+            <div class="metrics-column">
+                <div class="metric-card bg-indigo">
+                    <div class="metric-title">TỔNG LƯỢT XỬ LÝ</div>
+                    <div class="metric-value" id="metric-total">0</div>
+                </div>
+                <div class="metric-card bg-teal">
+                    <div class="metric-title">DỊCH VỤ HOẠT ĐỘNG</div>
+                    <div class="metric-value" id="metric-services">5/6</div>
+                </div>
+                <div class="metric-card bg-orange">
+                    <div class="metric-title">CHẶN XÂM NHẬP (LỖI)</div>
+                    <div class="metric-value" id="metric-blocked">0</div>
+                </div>
+                <div class="metric-card bg-red">
+                    <div class="metric-title">CẢNH BÁO KHẨN CẤP</div>
+                    <div class="metric-value" id="metric-emergency">0</div>
+                </div>
+            </div>
+
+            <div class="service-box">
+                <h3 class="box-header">LIÊN KẾT HỆ THỐNG</h3>
+                <ul class="service-list">
+                    <li><span class="srv-name">Cảm Biến IoT (B1)</span> <span class="srv-badge online" id="status-b1">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Camera Cổng (B2)</span> <span class="srv-badge online" id="status-b2">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Cổng Access (B3)</span> <span class="srv-badge online" id="status-b3">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">AI Vision (B4)</span> <span class="srv-badge offline" id="status-b4">NGẮT KẾT NỐI</span></li>
+                    <li><span class="srv-name">Analytics (B5)</span> <span class="srv-badge online" id="status-b5">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Báo Động (B7)</span> <span class="srv-badge online" id="status-b7">BÌNH THƯỜNG</span></li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- ===== CỘT GIỮA: NHẬT KÝ SỰ KIỆN ===== -->
+        <section class="column-center">
+            <div class="events-panel">
+                <div class="panel-topbar">
+                    <h2 class="panel-title">NHẬT KÝ HOẠT ĐỘNG TRỰC TIẾP</h2>
+                    
+                    <div class="filter-group">
+                        <button class="btn-fire-filter" id="filter-fire" type="button">Lọc Khẩn Cấp</button>
+                        <select class="custom-select" id="filter-gate">
+                            <option value="all">Tất cả Vị trí</option>
+                            <option value="gate-a">Cổng chính A</option>
+                            <option value="gate-b">Cổng chính B</option>
+                            <option value="lab-a101">Phòng Lab A101</option>
+                        </select>
+                        <select class="custom-select" id="filter-type">
+                            <option value="all">Tất cả Loại</option>
+                            <option value="access">Quản lý ra vào (Access)</option>
+                            <option value="sensor">Cảm biến nhiệt/khói</option>
+                            <option value="camera">Nhận diện Camera</option>
+                            <option value="alert">Cảnh báo An ninh</option>
+                        </select>
+                        <button class="btn-clear-data" id="btn-clear-feed" type="button">Làm sạch</button>
+                    </div>
+                </div>
+
+                <div class="feed-wrapper" id="event-feed">
+                    <div class="empty-feed">
+                        Đang chờ kết nối dữ liệu từ Core Business...
+                    </div>
+                </div>
+
+                <div class="feed-pagination">
+                    <button class="page-btn" id="btn-prev-events" disabled>Trang trước</button>
+                    <span class="page-text" id="info-events">Trang 1 / 1</span>
+                    <button class="page-btn" id="btn-next-events" disabled>Trang tiếp</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== CỘT PHẢI: CAMERA & FORM QUẸT THẺ ===== -->
+        <aside class="column-right">
+            
+            <div class="widget-card">
+                <h3 class="widget-title">GIÁM SÁT CAMERA</h3>
+                <div class="cam-container">
+                    <div class="cam-feed">
+                        <div class="cam-text">Camera Standby</div>
+                        <div class="cam-live-badge">REC</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="widget-card">
+                <h3 class="widget-title">KIỂM THỬ HỆ THỐNG A6</h3>
+                <form class="a6-form" id="form-access-check">
+                    <div class="input-block">
+                        <label>CHỌN MÃ THẺ ĐỊNH DANH</label>
+                        <select class="custom-select w-full" id="input-uid" required>
+                            <option value="04:A1:B2:C3:D4:01">04:A1:B2:C3:D4:01 (Nhân viên)</option>
+                            <option value="04:A1:B2:C3:D4:02">04:A1:B2:C3:D4:02 (Sinh viên)</option>
+                            <option value="7A:9B:11:22:33:01">7A:9B:11:22:33:01 (Thẻ lạ - Chặn)</option>
+                            <option value="USER-999">USER-999 (Test Bruteforce)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-block">
+                        <label>CHỌN CỔNG ĐIỀU KHIỂN</label>
+                        <select class="custom-select w-full" id="input-gate" required>
+                            <option value="gate-a">Main Gate A (Cổng chính)</option>
+                            <option value="lab-a101">Phòng Lab A101</option>
+                        </select>
+                    </div>
+
+                    <div class="input-block">
+                        <label>CHIỀU DI CHUYỂN</label>
+                        <select class="custom-select w-full" id="input-direction" required>
+                            <option value="IN">Vào Trong (IN)</option>
+                            <option value="OUT">Ra Ngoài (OUT)</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn-submit-a6">PHÁT TÍN HIỆU QUẸT THẺ</button>
+                    <div id="form-result" class="form-feedback"></div>
+                </form>
+            </div>
+
+            <!-- WebSocket Status -->
+            <div class="ws-status disconnected" id="conn-badge">
+                <span id="conn-text">Server Đang mất kết nối</span>
+            </div>
+
+        </aside>
+
+    </main>
+
+</div>
+
+<!-- ===== MODAL JSON NÂNG CẤP ===== -->
+<div class="json-backdrop" id="json-modal">
+    <div class="json-dialog">
+        <div class="json-header">
+            <h4>Bản Ghi Dữ Liệu Gốc</h4>
+            <button class="json-close" id="btn-close-modal">ĐÓNG</button>
+        </div>
+        <div class="json-body">
+            <pre><code id="json-code-block"></code></pre>
+        </div>
+    </div>
+</div>
+
+<script src="/dashboard/js/app.js"></script>
+</body>
+</html>

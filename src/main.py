@@ -8,12 +8,14 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from mqtt_handler import start_mqtt_client, stop_mqtt_client, get_mqtt_client
+from websocket_manager import manager as ws_manager
 
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "core-business")
@@ -34,6 +36,11 @@ app = FastAPI(
     description="Dockerized Core Business API aligned with OpenAPI and Postman contract.",
     lifespan=lifespan,
 )
+
+# Mount thu muc frontend tinh de phuc vu Dashboard tai route /dashboard
+_FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+if os.path.isdir(_FRONTEND_DIR):
+    app.mount("/dashboard", StaticFiles(directory=_FRONTEND_DIR, html=True), name="dashboard")
 
 
 class DirectionEnum(str, Enum):
@@ -386,3 +393,20 @@ def get_gate_status(gate_id: str) -> GateStatusResponse:
         gateId=gate_id,
         status="OPEN",
     )
+
+
+@app.websocket("/ws/dashboard")
+async def websocket_dashboard(websocket: WebSocket):
+    """
+    WebSocket endpoint cho phep giao dien Dashboard ket noi nhan du lieu real-time.
+    Moi su kien MQTT hoac Alert se duoc broadcast xuong tat ca client dang ket noi.
+    """
+    await ws_manager.connect(websocket)
+    try:
+        # Gui tin hieu chao mung khi client vua ket noi thanh cong
+        await websocket.send_text('{"type":"connected","message":"Smart Campus Dashboard connected"}')
+        while True:
+            # Giu ket noi song bang cach cho tin hieu ping tu client
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
