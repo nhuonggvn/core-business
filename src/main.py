@@ -1,7 +1,9 @@
+import asyncio
 import http.client
 import os
 import re
 import requests
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional
@@ -11,16 +13,26 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
+from mqtt_handler import start_mqtt_client, stop_mqtt_client, get_mqtt_client
+
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "core-business")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.4.0")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
 NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification:8000")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    loop = asyncio.get_event_loop()
+    start_mqtt_client(loop)
+    yield
+    stop_mqtt_client()
+
 app = FastAPI(
     title="FIT4110 Lab 04 - Core Business Service",
     version=SERVICE_VERSION,
     description="Dockerized Core Business API aligned with OpenAPI and Postman contract.",
+    lifespan=lifespan,
 )
 
 
@@ -204,13 +216,15 @@ def verify_bearer_token(authorization: Optional[str] = Header(default=None)) -> 
         )
 
 
-@app.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=SERVICE_VERSION,
-    )
+@app.api_route("/health", methods=["GET", "HEAD"])
+def health() -> dict:
+    mqtt_client = get_mqtt_client()
+    return {
+        "status": "ok",
+        "service": SERVICE_NAME,
+        "version": SERVICE_VERSION,
+        "mqtt_connected": mqtt_client.is_connected() if mqtt_client else False,
+    }
 
 
 @app.post(
