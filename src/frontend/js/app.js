@@ -26,6 +26,17 @@
     let countBlocked = 0;
     let countEmergency = 0;
 
+    // Cấu hình giám sát hoạt động dịch vụ (A1..A7)
+    const TIMEOUT_LIMIT = 20000; // Dịch vụ offline nếu quá 20s không có tin nhắn MQTT
+    let lastActive = {
+        a1: Date.now(),
+        a2: Date.now(),
+        a3: Date.now(),
+        a4: Date.now(),
+        a5: Date.now(),
+        a7: Date.now()
+    };
+
     // DOM Refs
     const eventFeed = document.getElementById("event-feed");
     const metricTotal = document.getElementById("metric-total");
@@ -123,7 +134,7 @@
             const globalIndex = startIndex + index;
             
             const row = document.createElement("div");
-            row.className = "event-row";
+            row.className = `event-row ${meta.rowClass || 'row-default'}`;
             row.innerHTML = `
                 <div class="event-time">${meta.time}</div>
                 <div class="event-content">
@@ -158,44 +169,55 @@
         const time = formatTime(d.timestamp || evt.localTimestamp);
 
         if (topic === "smart-campus/events/access") {
-            const isGranted = (d.access_result === "granted" || d.access_result === "true");
+            const isGranted = (d.access_result === "granted" || d.access_result === "true" || d.allow === true || d.accessResult === "ALLOWED");
             return {
                 time: time,
                 tagClass: isGranted ? "tag-success" : "tag-danger",
+                rowClass: isGranted ? "row-success" : "row-danger",
                 tagText: "[A6_ACCESS]",
-                desc: isGranted ? `Xác thực thành công. Mã định danh: ${d.uid}` : `Xác thực thất bại. Cảnh báo thẻ: ${d.uid}`
+                desc: isGranted ? `Xác thực thành công. Mã định danh: <strong>${d.uid || d.cardId || 'N/A'}</strong>` : `Xác thực thất bại. Cảnh báo thẻ: <strong>${d.uid || d.cardId || 'N/A'}</strong>`
             };
         }
         if (topic === "smart-campus/events/sensor") {
             const status = d.status || "unknown";
-            let tClass = status === "danger" ? "tag-danger" : (status === "warning" ? "tag-warning" : "tag-success");
+            let tClass = "tag-default";
+            let rClass = "row-default";
+            if (status === "danger") { tClass = "tag-danger"; rClass = "row-danger"; }
+            else if (status === "warning") { tClass = "tag-warning"; rClass = "row-warning"; }
+            else if (status === "normal") { tClass = "tag-success"; rClass = "row-success"; }
             return {
                 time: time,
                 tagClass: tClass,
+                rowClass: rClass,
                 tagText: "[A6_SENSOR]",
-                desc: `Trạng thái môi trường: ${status.toUpperCase()} (${d.location || 'N/A'}) - ${d.reason || ''}`
+                desc: `Trạng thái môi trường: <strong>${status.toUpperCase()}</strong> (${d.location || 'N/A'}) - ${d.reason || ''}`
             };
         }
         if (topic === "smart-campus/events/camera") {
             return {
                 time: time,
                 tagClass: "tag-success",
+                rowClass: "row-success",
                 tagText: "[A6_VISION]",
-                desc: `Phát hiện vật thể/người qua vùng quét: ${d.location || 'N/A'}`
+                desc: `Phát hiện vật thể/người qua vùng quét: <strong>${d.location || 'N/A'}</strong>`
             };
         }
         if (topic === "smart-campus/events/alert") {
             const sev = (d.severity || "low").toLowerCase();
-            let tClass = sev === "critical" ? "tag-danger" : (sev === "high" ? "tag-warning" : "tag-default");
+            let tClass = "tag-default";
+            let rClass = "row-default";
+            if (sev === "critical") { tClass = "tag-danger"; rClass = "row-danger"; }
+            else if (sev === "high") { tClass = "tag-warning"; rClass = "row-warning"; }
             return {
                 time: time,
                 tagClass: tClass,
+                rowClass: rClass,
                 tagText: "[CORE_ALERT]",
-                desc: `TÍN HIỆU ${sev.toUpperCase()}: ${d.message || d.alert_type}`
+                desc: `TÍN HIỆU <strong>${sev.toUpperCase()}</strong>: ${d.message || d.alert_type}`
             };
         }
 
-        return { time: time, tagClass: "tag-default", tagText: "[SYSTEM]", desc: escapeHtml(d.event_type || "Sự kiện ngoại vi") };
+        return { time: time, tagClass: "tag-default", rowClass: "row-default", tagText: "[SYSTEM]", desc: escapeHtml(d.event_type || "Sự kiện ngoại vi") };
     }
 
     // Nhận Dữ Liệu
@@ -212,6 +234,20 @@
             countEmergency++;
             metricEmergency.textContent = countEmergency;
         }
+
+        // Cập nhật timestamp nhận sự kiện cuối cùng
+        if (topic === "smart-campus/events/sensor") {
+            lastActive.a1 = Date.now();
+        } else if (topic === "smart-campus/events/camera") {
+            lastActive.a2 = Date.now();
+            lastActive.a4 = Date.now(); // AI Vision hoạt động khi camera quét
+        } else if (topic === "smart-campus/events/access") {
+            lastActive.a3 = Date.now();
+        } else if (topic === "smart-campus/events/alert") {
+            lastActive.a7 = Date.now();
+        }
+        // Giả lập Analytics luôn xử lý phân tích
+        lastActive.a5 = Date.now();
 
         allEvents.unshift({ topic, data, localTimestamp: new Date() });
         applyFilters();
@@ -233,10 +269,19 @@
             btnSubmit.disabled = true;
 
             try {
+                const reqId = "req-" + Math.random().toString(36).substr(2, 9);
+                const isoTime = new Date().toISOString();
+
                 const response = await fetch(API_ACCESS_CHECK, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` },
-                    body: JSON.stringify({ uid, gate_id, direction })
+                    body: JSON.stringify({ 
+                        requestId: reqId,
+                        cardId: uid, 
+                        gateId: gate_id, 
+                        direction: direction,
+                        timestamp: isoTime
+                    })
                 });
 
                 const data = await response.json();
@@ -288,14 +333,48 @@
     const connBadge = document.getElementById("conn-badge");
     const connText = document.getElementById("conn-text");
 
-    function updateServiceStatus(isOnline) {
-        const els = document.querySelectorAll(".srv-badge");
-        els.forEach(el => {
-            if (el.id === "status-b4") return; // B4 fake offline
-            el.className = `srv-badge ${isOnline ? "online" : "offline"}`;
-            el.textContent = isOnline ? "BÌNH THƯỜNG" : "MẤT KẾT NỐI";
+    function checkServicesLiveness() {
+        const now = Date.now();
+        let onlineCount = 0;
+        const isWsConnected = (ws && ws.readyState === WebSocket.OPEN);
+
+        const services = [
+            { id: "status-a1", key: "a1" },
+            { id: "status-a2", key: "a2" },
+            { id: "status-a3", key: "a3" },
+            { id: "status-a4", key: "a4" },
+            { id: "status-a5", key: "a5" },
+            { id: "status-a7", key: "a7" }
+        ];
+
+        services.forEach(srv => {
+            const el = document.getElementById(srv.id);
+            if (!el) return;
+
+            const isAlive = isWsConnected && (now - lastActive[srv.key] < TIMEOUT_LIMIT);
+            el.className = `srv-badge ${isAlive ? "online" : "offline"}`;
+            el.textContent = isAlive ? "BÌNH THƯỜNG" : "MẤT KẾT NỐI";
+            if (isAlive) onlineCount++;
         });
-        metricServices.textContent = isOnline ? "5/6" : "0/6";
+
+        if (metricServices) {
+            metricServices.textContent = `${onlineCount}/${services.length}`;
+        }
+    }
+
+    // Chạy giám sát dịch vụ định kỳ mỗi 3 giây
+    setInterval(checkServicesLiveness, 3000);
+
+    function updateServiceStatus(isOnline) {
+        if (isOnline) {
+            lastActive.a1 = Date.now();
+            lastActive.a2 = Date.now();
+            lastActive.a3 = Date.now();
+            lastActive.a4 = Date.now();
+            lastActive.a5 = Date.now();
+            lastActive.a7 = Date.now();
+        }
+        checkServicesLiveness();
 
         if (connBadge) {
             connBadge.className = `ws-status ${isOnline ? "connected" : "disconnected"}`;
