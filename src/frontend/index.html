@@ -30,34 +30,15 @@
                 <button class="btn-action btn-danger" id="btn-evacuate" type="button">SƠ TÁN</button>
             </div>
 
-            <div class="metrics-column">
-                <div class="metric-card bg-indigo">
-                    <div class="metric-title">TỔNG LƯỢT XỬ LÝ</div>
-                    <div class="metric-value" id="metric-total">0</div>
-                </div>
-                <div class="metric-card bg-teal">
-                    <div class="metric-title">DỊCH VỤ HOẠT ĐỘNG</div>
-                    <div class="metric-value" id="metric-services">5/6</div>
-                </div>
-                <div class="metric-card bg-orange">
-                    <div class="metric-title">CHẶN XÂM NHẬP (LỖI)</div>
-                    <div class="metric-value" id="metric-blocked">0</div>
-                </div>
-                <div class="metric-card bg-red">
-                    <div class="metric-title">CẢNH BÁO KHẨN CẤP</div>
-                    <div class="metric-value" id="metric-emergency">0</div>
-                </div>
-            </div>
-
             <div class="service-box">
                 <h3 class="box-header">LIÊN KẾT HỆ THỐNG</h3>
                 <ul class="service-list">
-                    <li><span class="srv-name">Cảm Biến IoT (B1)</span> <span class="srv-badge online" id="status-b1">BÌNH THƯỜNG</span></li>
-                    <li><span class="srv-name">Camera Cổng (B2)</span> <span class="srv-badge online" id="status-b2">BÌNH THƯỜNG</span></li>
-                    <li><span class="srv-name">Cổng Access (B3)</span> <span class="srv-badge online" id="status-b3">BÌNH THƯỜNG</span></li>
-                    <li><span class="srv-name">AI Vision (B4)</span> <span class="srv-badge offline" id="status-b4">NGẮT KẾT NỐI</span></li>
-                    <li><span class="srv-name">Analytics (B5)</span> <span class="srv-badge online" id="status-b5">BÌNH THƯỜNG</span></li>
-                    <li><span class="srv-name">Báo Động (B7)</span> <span class="srv-badge online" id="status-b7">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Cảm Biến IoT (A1)</span> <span class="srv-badge online" id="status-a1">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Camera Cổng (A2)</span> <span class="srv-badge online" id="status-a2">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Cổng Access (A3)</span> <span class="srv-badge online" id="status-a3">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">AI Vision (A4)</span> <span class="srv-badge online" id="status-a4">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Analytics (A5)</span> <span class="srv-badge online" id="status-a5">BÌNH THƯỜNG</span></li>
+                    <li><span class="srv-name">Báo Động (A7)</span> <span class="srv-badge online" id="status-a7">BÌNH THƯỜNG</span></li>
                 </ul>
             </div>
         </aside>
@@ -68,6 +49,25 @@
                 <div class="panel-topbar">
                     <h2 class="panel-title">NHẬT KÝ HOẠT ĐỘNG TRỰC TIẾP</h2>
                     
+                    <div class="metrics-row-top">
+                        <div class="metric-card bg-indigo">
+                            <div class="metric-title">TỔNG LƯỢT XỬ LÝ</div>
+                            <div class="metric-value" id="metric-total">0</div>
+                        </div>
+                        <div class="metric-card bg-teal">
+                            <div class="metric-title">DỊCH VỤ HOẠT ĐỘNG</div>
+                            <div class="metric-value" id="metric-services">5/6</div>
+                        </div>
+                        <div class="metric-card bg-orange">
+                            <div class="metric-title">CHẶN XÂM NHẬP (LỖI)</div>
+                            <div class="metric-value" id="metric-blocked">0</div>
+                        </div>
+                        <div class="metric-card bg-red">
+                            <div class="metric-title">CẢNH BÁO KHẨN CẤP</div>
+                            <div class="metric-value" id="metric-emergency">0</div>
+                        </div>
+                    </div>
+
                     <div class="filter-group">
                         <button class="btn-fire-filter" id="filter-fire" type="button">Lọc Khẩn Cấp</button>
                         <select class="custom-select" id="filter-gate">
@@ -107,8 +107,8 @@
             <div class="widget-card">
                 <h3 class="widget-title">GIÁM SÁT CAMERA</h3>
                 <div class="cam-container">
-                    <div class="cam-feed">
-                        <div class="cam-text">Camera Standby</div>
+                    <div class="cam-feed" style="width: 100%; height: 100%; position: relative;">
+                        <img src="https://camera.labaiotdnu.app/video?key=matkhau_cua_ban" alt="Live Stream" style="width: 100%; height: 100%; object-fit: cover; display: block;">
                         <div class="cam-live-badge">REC</div>
                     </div>
                 </div>
@@ -120,10 +120,10 @@
                     <div class="input-block">
                         <label>CHỌN MÃ THẺ ĐỊNH DANH</label>
                         <select class="custom-select w-full" id="input-uid" required>
-                            <option value="04:A1:B2:C3:D4:01">04:A1:B2:C3:D4:01 (Nhân viên)</option>
-                            <option value="04:A1:B2:C3:D4:02">04:A1:B2:C3:D4:02 (Sinh viên)</option>
-                            <option value="7A:9B:11:22:33:01">7A:9B:11:22:33:01 (Thẻ lạ - Chặn)</option>
-                            <option value="USER-999">USER-999 (Test Bruteforce)</option>
+                            <option value="CARD-123456">CARD-123456 (Nhân viên)</option>
+                            <option value="CARD-654321">CARD-654321 (Sinh viên)</option>
+                            <option value="CARD-000000">CARD-000000 (Thẻ lạ - Chặn)</option>
+                            <option value="CARD-999999">CARD-999999 (Test Bruteforce)</option>
                         </select>
                     </div>
                     
