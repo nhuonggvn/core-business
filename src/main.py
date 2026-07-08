@@ -1,6 +1,8 @@
 import asyncio
 import http.client
 import os
+import threading
+import requests
 import psycopg2
 import uuid
 from contextlib import asynccontextmanager
@@ -19,10 +21,12 @@ from websocket_manager import manager as ws_manager
 
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "core-business")
-# Giao tiep voi A7 hoan toan qua MQTT, khong dung REST truc tiep
+# Giao tiep voi A7 qua ca REST va MQTT
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.5.0")
 # Token xac thuc cho A3 goi vao API cua A6
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
+# URL dich vu thong bao A7 (Radmin VPN)
+NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://26.19.238.62:8000")
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "db")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
@@ -99,6 +103,16 @@ def init_db_tables():
     ('CARD-123456', 'Nguyen Van A', 'ACTIVE', '2027-12-31T23:59:59Z'),
     ('CARD-654321', 'Tran Thi B', 'ACTIVE', '2027-12-31T23:59:59Z'),
     ('CARD-000000', 'The Bi Khoa', 'BLOCKED', '2027-12-31T23:59:59Z'),
+    ('CARD-000401', 'Nguyen Van An', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000402', 'Tran Thi Binh', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000403', 'Le Minh Cuong', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000404', 'Pham Thu Dung', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000405', 'Hoang Van Hieu', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000406', 'Do Thi Lan', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000407', 'Bui Quang Minh', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000408', 'Vu Thanh Nam', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000409', 'Dang Phuong Thao', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000410', 'Nguyen Minh Quan', 'ACTIVE', '2027-12-31T23:59:59Z'),
     ('CARD-999999', 'The Test Bruteforce', 'ACTIVE', '2027-12-31T23:59:59Z'),
     ('CARD-888888', 'The Het Han', 'EXPIRED', '2025-12-31T23:59:59Z'),
     ('CARD-000401', 'The RFID 401', 'ACTIVE', '2027-12-31T23:59:59Z'),
@@ -109,7 +123,7 @@ def init_db_tables():
     ('CARD-000408', 'The RFID 408', 'ACTIVE', '2027-12-31T23:59:59Z'),
     ('CARD-000409', 'The RFID 409', 'ACTIVE', '2027-12-31T23:59:59Z'),
     ('CARD-000410', 'The RFID 410', 'ACTIVE', '2027-12-31T23:59:59Z')
-    ON CONFLICT (card_id) DO NOTHING;
+    ON CONFLICT (card_id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status;
     """
     execute_db_query(seed_cards)
     print("[DB Info] Seed data updated successfully into PostgreSQL.")
@@ -184,26 +198,133 @@ class GateStatusResponse(BaseModel):
     status: str
 
 
+def _send_to_a7_rest(
+    event_type: str,
+    alert_id: str,
+    severity: str,
+    title: str,
+    message: str,
+    source: str,
+    alert_level: str,
+    channels: List[str],
+    correlation_id: str,
+    metadata: Optional[Dict] = None,
+) -> None:
+    """
+    Gui canh bao sang A7 (Notification Service) qua REST API.
+    Su dung dung format AlertEventPayload theo OpenAPI cua A7.
+    """
+    if not NOTIFICATION_SERVICE_URL:
+        print("[A7] NOTIFICATION_SERVICE_URL chua duoc cau hinh, bo qua.")
+        return
+
+    # Xac dinh endpoint phu hop voi loai su kien
+    endpoint_map = {
+        "alert.created": "/events/alert.created",
+        "alert.escalated": "/events/alert.escalated",
+        "alert.resolved": "/events/alert.resolved",
+    }
+    path = endpoint_map.get(event_type, "/events/alert.created")
+    url = f"{NOTIFICATION_SERVICE_URL.rstrip('/')}{path}"
+
+    payload = {
+        "eventId": str(uuid.uuid4()),
+        "eventType": event_type,
+        "alertId": alert_id[:100],
+        "correlationId": correlation_id[:100],
+        "source": source,
+        "severity": severity,
+        "alertVersion": 1,
+        "occurredAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "data": {
+            "title": title,
+            "message": message,
+            "source": source,
+            "alertLevel": alert_level,
+        },
+        "channels": channels[:4],
+        "metadata": metadata or {},
+    }
+    try:
+        resp = requests.post(
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {AUTH_TOKEN}"},
+            timeout=3.0,
+        )
+        if resp.status_code == 202:
+            print(f"[A7] Da gui thanh cong sang A7: {event_type} | alert_id={alert_id}")
+        else:
+            print(f"[A7] A7 tra ve ma {resp.status_code}: {resp.text[:200]}")
+    except requests.exceptions.Timeout:
+        print(f"[A7] Timeout khi gui sang A7 ({url})")
+    except requests.exceptions.RequestException as e:
+        print(f"[A7] Loi ket noi A7: {e}")
+
+
 def _publish_security_alert(reason_code: str, card_id: str, gate_id: str) -> None:
     """
-    Dua canh bao bao mat len topic MQTT chuan de A7 nhan.
-    Thay the REST call sang A7 (tuan thu kien truc event-driven cua he thong).
+    Xu ly canh bao bao mat khi co vi pham quet the:
+    - Publish len MQTT de broadcast noi bo va Dashboard.
+    - Gui REST sang A7 voi dung format AlertEventPayload.
     """
-    alert_payload = {
+    alert_id = f"ALT-{uuid.uuid4().hex[:8].upper()}"
+    correlation_id = str(uuid.uuid4())
+
+    # Phan loai muc do nghiem trong theo loai vi pham
+    severity_map = {
+        "CARD_NOT_FOUND": "MEDIUM",
+        "CARD_BLOCKED": "HIGH",
+        "CARD_EXPIRED": "HIGH",
+        "GATE_LOCKED": "HIGH",
+        "OUT_OF_SCHEDULE": "MEDIUM",
+    }
+    severity = severity_map.get(reason_code, "MEDIUM")
+
+    title_map = {
+        "CARD_NOT_FOUND": "The khong ton tai",
+        "CARD_BLOCKED": "The bi khoa",
+        "CARD_EXPIRED": "The da het han",
+        "GATE_LOCKED": "Cong dang khoa",
+        "OUT_OF_SCHEDULE": "Quet the ngoai gio cho phep",
+    }
+    title = title_map.get(reason_code, "Vi pham bao mat")
+    message = f"Vi pham quet the ({reason_code}) cho the {card_id} tai cong {gate_id}"
+
+    # 1. Publish MQTT noi bo de Dashboard nhan real-time
+    mqtt_payload = {
         "event_type": "core.alert.created",
         "source_service": "team-core",
-        "alert_id": f"ALT-{uuid.uuid4().hex[:8].upper()}",
+        "alert_id": alert_id,
         "alert_type": "access_violation",
-        "severity": "high",
-        "message": f"Vi pham quet the ({reason_code}) cho the {card_id} tai cong {gate_id}",
+        "reason_code": reason_code,
+        "severity": severity.lower(),
+        "message": message,
         "card_id": card_id,
         "gate_id": gate_id,
-        "reason_code": reason_code,
-        "target": "security_team",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    publish_alert(alert_payload)
-    print(f"[Alert] Published MQTT alert: reason={reason_code} card={card_id} gate={gate_id}")
+    publish_alert(mqtt_payload)
+
+    # 2. Gui REST sang A7 (background, khong block response tra ve cho A3)
+    thread = threading.Thread(
+        target=_send_to_a7_rest,
+        kwargs={
+            "event_type": "alert.created",
+            "alert_id": alert_id,
+            "severity": severity,
+            "title": title,
+            "message": message,
+            "source": "core-business-service",
+            "alert_level": severity,
+            "channels": ["telegram"],
+            "correlation_id": correlation_id,
+            "metadata": {"card_id": card_id, "gate_id": gate_id, "reason_code": reason_code},
+        },
+        daemon=True,
+    )
+    thread.start()
+    print(f"[Alert] Sent security alert: reason={reason_code} card={card_id} gate={gate_id}")
 
 
 def build_problem(
