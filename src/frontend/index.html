@@ -41,6 +41,11 @@
                     <li><span class="srv-name">Báo Động (A7)</span> <span class="srv-badge online" id="status-a7">BÌNH THƯỜNG</span></li>
                 </ul>
             </div>
+
+            <!-- Trạng thái kết nối WebSocket -->
+            <div class="ws-status disconnected" id="conn-badge" style="margin-top: auto;">
+                <span id="conn-text">Server Đang mất kết nối</span>
+            </div>
         </aside>
 
         <!-- ===== CỘT GIỮA: NHẬT KÝ SỰ KIỆN ===== -->
@@ -99,60 +104,6 @@
                 </div>
             </div>
         </section>
-
-        <!-- ===== CỘT PHẢI: CAMERA & FORM QUẸT THẺ ===== -->
-        <aside class="column-right">
-            
-            <div class="widget-card">
-                <h3 class="widget-title">GIÁM SÁT CAMERA</h3>
-                <div class="cam-container">
-                    <div class="cam-feed" style="width: 100%; height: 100%; position: relative;">
-                        <img src="https://camera.labaiotdnu.app/video?key=matkhau_cua_ban" alt="Live Stream" style="width: 100%; height: 100%; object-fit: cover; display: block;">
-                        <div class="cam-live-badge">REC</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="widget-card">
-                <h3 class="widget-title">KIỂM THỬ HỆ THỐNG A6</h3>
-                <form class="a6-form" id="form-access-check">
-                    <div class="input-block">
-                        <label>CHỌN MÃ THẺ ĐỊNH DANH</label>
-                        <select class="custom-select w-full" id="input-uid" required>
-                            <option value="CARD-123456">CARD-123456 (Nhân viên)</option>
-                            <option value="CARD-654321">CARD-654321 (Sinh viên)</option>
-                            <option value="CARD-000000">CARD-000000 (Thẻ lạ - Chặn)</option>
-                            <option value="CARD-999999">CARD-999999 (Test Bruteforce)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="input-block">
-                        <label>CHỌN CỔNG ĐIỀU KHIỂN</label>
-                        <select class="custom-select w-full" id="input-gate" required>
-                            <option value="gate-a">Main Gate A (Cổng chính)</option>
-                            <option value="lab-a101">Phòng Lab A101</option>
-                        </select>
-                    </div>
-
-                    <div class="input-block">
-                        <label>CHIỀU DI CHUYỂN</label>
-                        <select class="custom-select w-full" id="input-direction" required>
-                            <option value="IN">Vào Trong (IN)</option>
-                            <option value="OUT">Ra Ngoài (OUT)</option>
-                        </select>
-                    </div>
-
-                    <button type="submit" class="btn-submit-a6">PHÁT TÍN HIỆU QUẸT THẺ</button>
-                    <div id="form-result" class="form-feedback"></div>
-                </form>
-            </div>
-
-            <!-- WebSocket Status -->
-            <div class="ws-status disconnected" id="conn-badge">
-                <span id="conn-text">Server Đang mất kết nối</span>
-            </div>
-
-        </aside>
 
     </main>
 

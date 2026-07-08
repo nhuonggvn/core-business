@@ -48,9 +48,6 @@
     const jsonCodeBlock = document.getElementById("json-code-block");
     const btnCloseModal = document.getElementById("btn-close-modal");
 
-    const formAccess = document.getElementById("form-access-check");
-    const formResult = document.getElementById("form-result");
-
     const btnPrev = document.getElementById("btn-prev-events");
     const btnNext = document.getElementById("btn-next-events");
     const pageInfo = document.getElementById("info-events");
@@ -287,58 +284,7 @@
         applyFilters();
     }
 
-    // Xử lý Gửi Form
-    if (formAccess) {
-        formAccess.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const uid = document.getElementById("input-uid").value;
-            const gate_id = document.getElementById("input-gate").value;
-            const direction = document.getElementById("input-direction").value;
-            const btnSubmit = formAccess.querySelector(".btn-submit-a6");
 
-            formResult.style.display = "block";
-            formResult.style.background = "var(--bg-card)";
-            formResult.style.color = "var(--text-primary)";
-            formResult.textContent = "Đang kết nối API A6...";
-            btnSubmit.disabled = true;
-
-            try {
-                const reqId = "req-" + Math.random().toString(36).substr(2, 9);
-                const isoTime = new Date().toISOString();
-
-                const response = await fetch(API_ACCESS_CHECK, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` },
-                    body: JSON.stringify({ 
-                        requestId: reqId,
-                        cardId: uid, 
-                        gateId: gate_id, 
-                        direction: direction,
-                        timestamp: isoTime
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (response.ok) {
-                    formResult.style.background = "rgba(20, 184, 166, 0.2)";
-                    formResult.style.color = "var(--brand-teal)";
-                    formResult.textContent = `OK: Cửa Mở (${data.accessResult})`;
-                } else {
-                    formResult.style.background = "rgba(225, 29, 72, 0.2)";
-                    formResult.style.color = "var(--color-red)";
-                    formResult.textContent = `CẢNH BÁO: Bị chặn (${data.detail || data.accessResult})`;
-                }
-            } catch (err) {
-                formResult.style.background = "rgba(234, 88, 12, 0.2)";
-                formResult.style.color = "var(--color-orange)";
-                formResult.textContent = `Lỗi mạng: Mất kết nối Backend.`;
-            } finally {
-                btnSubmit.disabled = false;
-                setTimeout(() => { formResult.style.display = "none"; }, 4000);
-            }
-        });
-    }
 
     // Modal
     btnCloseModal.addEventListener("click", () => jsonModal.classList.remove("show"));

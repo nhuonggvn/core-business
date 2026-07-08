@@ -25,6 +25,17 @@
     --radius-md:      12px;
     --font-base:      'Inter', system-ui, -apple-system, sans-serif;
     --font-mono:      'JetBrains Mono', 'Fira Code', monospace;
+    
+    --bg-metric:      rgba(6, 9, 22, 0.4);
+    --border-metric:  rgba(255, 255, 255, 0.05);
+    --bg-input:       rgba(6, 9, 22, 0.5);
+    --bg-btn-clear:   rgba(255, 255, 255, 0.05);
+    --border-btn-clear: rgba(255, 255, 255, 0.08);
+    
+    --bg-row:         rgba(15, 23, 42, 0.25);
+    --border-row:     rgba(255, 255, 255, 0.05);
+    --bg-btn-json:    rgba(99, 102, 241, 0.1);
+    --text-btn-json:  #a5b4fc;
 }
 
 body.light-theme {
@@ -46,6 +57,17 @@ body.light-theme {
     
     --shadow-soft:    0 8px 32px 0 rgba(31, 38, 135, 0.08);
     --shadow-glow:    0 0 15px rgba(79, 70, 229, 0.15);
+    
+    --bg-metric:      rgba(255, 255, 255, 0.65);
+    --border-metric:  rgba(0, 0, 0, 0.05);
+    --bg-input:       rgba(255, 255, 255, 0.5);
+    --bg-btn-clear:   rgba(0, 0, 0, 0.05);
+    --border-btn-clear: rgba(0, 0, 0, 0.1);
+    
+    --bg-row:         rgba(255, 255, 255, 0.75);
+    --border-row:     rgba(0, 0, 0, 0.06);
+    --bg-btn-json:    rgba(99, 102, 241, 0.08);
+    --text-btn-json:  var(--brand-indigo);
 }
 
 /* ===== GLOBAL ===== */
@@ -100,10 +122,13 @@ body::after {
 
 .grid-layout {
     display: grid;
-    grid-template-columns: 300px 1fr 320px;
+    grid-template-columns: 300px 1fr;
     gap: 16px;
     height: 100%;
     overflow: hidden;
+    max-width: 1400px; /* gioi han do rong de tranh keo dan qua muc */
+    width: 100%;
+    margin: 0 auto; /* can giua toan bo layout tren man hinh */
 }
 
 .column-left, .column-center, .column-right {
@@ -341,8 +366,8 @@ body::after {
 .metric-card { 
     padding: 14px; 
     border-radius: var(--radius-md); 
-    background: rgba(6, 9, 22, 0.4); 
-    border: 1px solid rgba(255, 255, 255, 0.05); 
+    background: var(--bg-metric); 
+    border: 1px solid var(--border-metric); 
     display: flex; 
     flex-direction: column; 
     justify-content: space-between; 
@@ -392,9 +417,9 @@ body::after {
     padding: 10px 16px; 
     font-family: var(--font-base); 
     font-size: 0.85rem; 
-    border: 1px solid rgba(255, 255, 255, 0.08); 
+    border: 1px solid var(--border-light); 
     border-radius: 8px; 
-    background: rgba(6, 9, 22, 0.5); 
+    background: var(--bg-input); 
     color: var(--text-primary); 
     outline: none; 
     transition: all 0.2s ease; 
@@ -429,9 +454,9 @@ body::after {
 }
 
 .btn-clear-data { 
-    background: rgba(255, 255, 255, 0.05); 
+    background: var(--bg-btn-clear); 
     color: var(--text-secondary); 
-    border-color: rgba(255, 255, 255, 0.08); 
+    border-color: var(--border-btn-clear); 
 }
 
 .btn-clear-data:hover { 
@@ -460,8 +485,8 @@ body::after {
     padding: 12px 20px; 
     margin: 6px 20px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.05); 
-    background: rgba(15, 23, 42, 0.25);
+    border: 1px solid var(--border-row); 
+    background: var(--bg-row);
     display: flex; 
     align-items: center; 
     gap: 20px; 
@@ -540,8 +565,8 @@ body::after {
     font-size: 0.75rem; 
     padding: 6px 12px; 
     border-radius: 6px; 
-    background: rgba(99, 102, 241, 0.1); 
-    color: #a5b4fc; 
+    background: var(--bg-btn-json); 
+    color: var(--text-btn-json); 
     border: 1px solid rgba(99, 102, 241, 0.2); 
     cursor: pointer; 
     font-weight: 600; 
@@ -703,9 +728,9 @@ body::after {
     text-align: center; 
     font-size: 0.8rem; 
     font-weight: 700; 
-    background: rgba(6, 9, 22, 0.3); 
+    background: var(--bg-card); 
     backdrop-filter: blur(10px); 
-    border: 1px solid transparent;
+    border: 1px solid var(--border-light);
 }
 
 .ws-status.disconnected { 
