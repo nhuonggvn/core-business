@@ -118,17 +118,13 @@
                 let isMatch = normItem.includes(normFilter);
                 
                 // Anh xa tu dong nghia cho Cong A va Cong B
+                // Anh xa tu dong nghia cho Cong A và Cong B
                 if (!isMatch) {
                     if (filter === "gate-a") {
                         isMatch = itemGate.includes("cổng chính a") || 
                                   itemGate.includes("main gate a") || 
                                   itemGate.includes("gate a") || 
                                   itemGate.includes("gate-01");
-                    } else if (filter === "gate-b") {
-                        isMatch = itemGate.includes("cổng chính b") || 
-                                  itemGate.includes("main gate b") || 
-                                  itemGate.includes("gate b") || 
-                                  itemGate.includes("gate-02");
                     }
                 }
                 
