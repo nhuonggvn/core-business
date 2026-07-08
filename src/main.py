@@ -102,15 +102,29 @@ def send_alert_to_notification(reason_code: str, card_id: str, gate_id: str) -> 
         print("NOTIFICATION_SERVICE_URL is not set. Skipping notification.")
         return
 
-    alert_id = f"ALT-{int(datetime.now(timezone.utc).timestamp())}"
-    message = f"Access denied ({reason_code}) for card {card_id} at gate {gate_id}"
+    import uuid
+    event_id = str(uuid.uuid4())
+    alert_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
+    
+    message = f"Phát hiện quẹt thẻ thất bại ({reason_code}) cho thẻ {card_id} tại cổng {gate_id}"
 
     payload = {
-        "alert_id": alert_id,
-        "type": "unauthorized_access",
-        "severity": "high",
-        "message": message,
-        "target": "security_team"
+        "eventId": event_id,
+        "eventType": "alert.created",
+        "alertId": alert_id,
+        "correlationId": correlation_id,
+        "source": "core-business-service",
+        "severity": "HIGH",
+        "alertVersion": 1,
+        "occurredAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "data": {
+            "title": "Cảnh báo Bruteforce",
+            "message": message,
+            "source": "access-gate",
+            "alertLevel": "HIGH"
+        },
+        "channels": ["telegram"]
     }
 
     headers = {
@@ -118,12 +132,15 @@ def send_alert_to_notification(reason_code: str, card_id: str, gate_id: str) -> 
         "Authorization": f"Bearer {AUTH_TOKEN}"
     }
 
-    url = f"{NOTIFICATION_SERVICE_URL.rstrip('/')}/api/v1/alerts"
+    url = f"{NOTIFICATION_SERVICE_URL.rstrip('/')}/events/alert.created"
     print(f"Sending alert to Notification Service: {url} with payload: {payload}")
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=3.0)
-        response.raise_for_status()
-        print(f"Alert sent successfully. Response: {response.status_code}")
+        if response.status_code == 202:
+            print(f"Đã gọi API gửi thông báo sang A7 thành công (Mã: {response.status_code} Accepted)")
+        else:
+            response.raise_for_status()
+            print(f"Alert sent successfully. Response: {response.status_code}")
     except requests.exceptions.Timeout:
         print(f"Error: Timeout sending alert to Notification Service (A7) at {url}")
     except requests.exceptions.RequestException as e:
