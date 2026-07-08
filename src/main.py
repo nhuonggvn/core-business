@@ -627,6 +627,55 @@ def get_gate_status(gate_id: str) -> GateStatusResponse:
     )
 
 
+@app.post("/emergency/evacuate")
+def trigger_evacuation() -> Dict:
+    """
+    Kich hoat lenh so tan khan cap toan Campus.
+    - Publish MQTT voi severity CRITICAL.
+    - Gui REST sang A7 de phat tin hieu Telegram ngay lap tuc.
+    - Broadcast xuong Dashboard qua WebSocket.
+    """
+    alert_id = f"ALT-{uuid.uuid4().hex[:8].upper()}"
+    correlation_id = str(uuid.uuid4())
+    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # 1. Tao payload canh bao so tan
+    evacuation_alert = {
+        "event_type": "core.alert.created",
+        "source_service": "team-core",
+        "alert_id": alert_id,
+        "alert_type": "evacuation_initiated",
+        "severity": "critical",
+        "message": "LENH SO TAN KHAN CAP TOAN TRAM A6 DA PHAT DONG!",
+        "timestamp": now_iso,
+    }
+
+    # 2. Publish MQTT noi bo va broadcast Dashboard
+    publish_alert(evacuation_alert)
+
+    # 3. Gui sang A7 REST voi format AlertEventPayload (background thread)
+    thread = threading.Thread(
+        target=_send_to_a7_rest,
+        kwargs={
+            "event_type": "alert.escalated",
+            "alert_id": alert_id,
+            "severity": "CRITICAL",
+            "title": "LENH SO TAN KHAN CAP",
+            "message": "LENH SO TAN KHAN CAP TOAN TRAM A6 DA PHAT DONG! Tat ca moi nguoi hay roi khoi toa nha ngay lap tuc!",
+            "source": "core-business-service",
+            "alert_level": "CRITICAL",
+            "channels": ["telegram"],
+            "correlation_id": correlation_id,
+            "metadata": {"triggered_by": "dashboard_operator", "location": "Smart Campus A6"},
+        },
+        daemon=True,
+    )
+    thread.start()
+
+    print(f"[EVACUATE] Lenh so tan da phat dong! alert_id={alert_id}")
+    return {"status": "ok", "message": "Lenh so tan da gui di", "alertId": alert_id}
+
+
 @app.websocket("/ws/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
     """

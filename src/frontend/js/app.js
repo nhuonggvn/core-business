@@ -359,8 +359,28 @@
     btnPrev.addEventListener("click", () => { if (currentPage > 1) { currentPage--; renderFeed(); } });
     btnNext.addEventListener("click", () => { const totalPages = Math.ceil(filteredEvents.length / ITEMS_PER_PAGE); if (currentPage < totalPages) { currentPage++; renderFeed(); } });
 
-    document.getElementById("btn-evacuate").addEventListener("click", () => {
-        addEvent("smart-campus/events/alert", { alert_type: "evacuation_initiated", severity: "critical", message: "LỆNH SƠ TÁN TOÀN TRẠM A6 ĐÃ PHÁT ĐỘNG!" });
+    document.getElementById("btn-evacuate").addEventListener("click", async () => {
+        const confirmed = window.confirm("XAC NHAN: Ban co chac chan muon phat lenh SO TAN khan cap toan tram A6 khong?");
+        if (!confirmed) return;
+
+        try {
+            const resp = await fetch("/emergency/evacuate", { method: "POST" });
+            const body = await resp.json();
+            if (resp.ok) {
+                // Hien thi su kien tren Dashboard sau khi backend xu ly thanh cong
+                addEvent("smart-campus/events/alert", {
+                    alert_type: "evacuation_initiated",
+                    severity: "critical",
+                    message: "LENH SO TAN KHAN CAP TOAN TRAM A6 DA PHAT DONG!",
+                    alert_id: body.alertId,
+                });
+                alert("Da gui lenh SO TAN thanh cong sang A7! Alert ID: " + body.alertId);
+            } else {
+                alert("Loi gui lenh so tan: " + JSON.stringify(body));
+            }
+        } catch (err) {
+            alert("Khong the ket noi toi server: " + err.message);
+        }
     });
 
     // WebSocket Conn
