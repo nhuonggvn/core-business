@@ -58,16 +58,25 @@
     // Theme Toggle
     const btnTheme = document.getElementById("btn-theme");
     if (btnTheme) {
-        const savedTheme = localStorage.getItem("a6-theme") || "light";
+        const savedTheme = localStorage.getItem("a6-theme") || "dark";
         if (savedTheme === "dark") {
             document.body.className = "dark-theme";
             btnTheme.textContent = "Chế độ sáng";
+        } else {
+            document.body.className = "light-theme";
+            btnTheme.textContent = "Chế độ tối";
         }
         btnTheme.addEventListener("click", () => {
             const isDark = document.body.classList.toggle("dark-theme");
-            document.body.classList.remove(isDark ? "light-theme" : "dark-theme");
-            btnTheme.textContent = isDark ? "Chế độ sáng" : "Chế độ tối";
-            localStorage.setItem("a6-theme", isDark ? "dark" : "light");
+            if (isDark) {
+                document.body.classList.remove("light-theme");
+                btnTheme.textContent = "Chế độ sáng";
+                localStorage.setItem("a6-theme", "dark");
+            } else {
+                document.body.classList.add("light-theme");
+                btnTheme.textContent = "Chế độ tối";
+                localStorage.setItem("a6-theme", "light");
+            }
         });
     }
 
@@ -117,8 +126,7 @@
                 
                 let isMatch = normItem.includes(normFilter);
                 
-                // Anh xa tu dong nghia cho Cong A va Cong B
-                // Anh xa tu dong nghia cho Cong A và Cong B
+                // Anh xa tu dong nghia cho Cong A
                 if (!isMatch) {
                     if (filter === "gate-a") {
                         isMatch = itemGate.includes("cổng chính a") || 

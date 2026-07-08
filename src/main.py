@@ -1,8 +1,8 @@
 import asyncio
 import http.client
 import os
-import re
-import requests
+import psycopg2
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from enum import Enum
@@ -12,19 +12,112 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
-from mqtt_handler import start_mqtt_client, stop_mqtt_client, get_mqtt_client
+from mqtt_handler import start_mqtt_client, stop_mqtt_client, get_mqtt_client, publish_alert
 from websocket_manager import manager as ws_manager
 
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "core-business")
-SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.4.0")
+# Giao tiep voi A7 hoan toan qua MQTT, khong dung REST truc tiep
+SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.5.0")
+# Token xac thuc cho A3 goi vao API cua A6
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
-NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification:8000")
+
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "db")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "lab05")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "lab05pass")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "iotdb")
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        host=POSTGRES_HOST,
+        port=POSTGRES_PORT,
+        database=POSTGRES_DB,
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        connect_timeout=3
+    )
+
+
+def execute_db_query(query, params=None, fetch=False):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, params or ())
+        if fetch:
+            results = cur.fetchall()
+            cur.close()
+            conn.close()
+            return results
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[DB Error] SQL execution failed: {e}")
+        return None
+
+
+def init_db_tables():
+    create_tables_sql = """
+    CREATE TABLE IF NOT EXISTS gates (
+        gate_id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        status VARCHAR(50) NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS cards (
+        card_id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        expires_at VARCHAR(50) NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS decisions (
+        decision_id VARCHAR(50) PRIMARY KEY,
+        card_id VARCHAR(50) NOT NULL,
+        gate_id VARCHAR(50) NOT NULL,
+        allow BOOLEAN NOT NULL,
+        reason_code VARCHAR(50) NOT NULL,
+        timestamp VARCHAR(50) NOT NULL
+    );
+    """
+    execute_db_query(create_tables_sql)
+    
+    seed_gates = """
+    INSERT INTO gates (gate_id, name, status) VALUES
+    ('GATE-01', 'Cong so 1', 'OPEN'),
+    ('gate-a', 'Cong chinh A', 'OPEN'),
+    ('lab-a101', 'Phong Lab A101', 'OPEN')
+    ON CONFLICT (gate_id) DO NOTHING;
+    """
+    execute_db_query(seed_gates)
+        
+    seed_cards = """
+    INSERT INTO cards (card_id, name, status, expires_at) VALUES
+    ('CARD-123456', 'Nguyen Van A', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-654321', 'Tran Thi B', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000000', 'The Bi Khoa', 'BLOCKED', '2027-12-31T23:59:59Z'),
+    ('CARD-999999', 'The Test Bruteforce', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-888888', 'The Het Han', 'EXPIRED', '2025-12-31T23:59:59Z'),
+    ('CARD-000401', 'The RFID 401', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000404', 'The RFID 404', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000405', 'The RFID 405', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000406', 'The RFID 406', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000407', 'The RFID 407', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000408', 'The RFID 408', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000409', 'The RFID 409', 'ACTIVE', '2027-12-31T23:59:59Z'),
+    ('CARD-000410', 'The RFID 410', 'ACTIVE', '2027-12-31T23:59:59Z')
+    ON CONFLICT (card_id) DO NOTHING;
+    """
+    execute_db_query(seed_cards)
+    print("[DB Info] Seed data updated successfully into PostgreSQL.")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db_tables()
     loop = asyncio.get_event_loop()
     start_mqtt_client(loop)
     yield
@@ -64,17 +157,11 @@ class HealthResponse(BaseModel):
 
 class AccessCheckRequest(BaseModel):
     requestId: str = Field(..., examples=["0196fb3d-4ad7-7d1e-9f49-5d5148d2cafe"])
+    # cardId chap nhan moi dinh dang: CARD-xxxxxx, UID hex, ma sinh vien...
     cardId: str = Field(..., examples=["CARD-123456"])
     gateId: str = Field(..., examples=["GATE-01"])
     direction: DirectionEnum = Field(..., examples=["IN"])
     timestamp: str = Field(..., examples=["2026-06-01T10:00:00Z"])
-
-    @field_validator("cardId")
-    @classmethod
-    def validate_card_id(cls, v: str) -> str:
-        if not re.match(r"^CARD-[0-9]{6}$", v):
-            raise ValueError("cardId must match pattern ^CARD-[0-9]{6}$")
-        return v
 
 
 class AccessCheckResponse(BaseModel):
@@ -97,54 +184,26 @@ class GateStatusResponse(BaseModel):
     status: str
 
 
-def send_alert_to_notification(reason_code: str, card_id: str, gate_id: str) -> None:
-    if not NOTIFICATION_SERVICE_URL:
-        print("NOTIFICATION_SERVICE_URL is not set. Skipping notification.")
-        return
-
-    import uuid
-    event_id = str(uuid.uuid4())
-    alert_id = str(uuid.uuid4())
-    correlation_id = str(uuid.uuid4())
-    
-    message = f"Phát hiện quẹt thẻ thất bại ({reason_code}) cho thẻ {card_id} tại cổng {gate_id}"
-
-    payload = {
-        "eventId": event_id,
-        "eventType": "alert.created",
-        "alertId": alert_id,
-        "correlationId": correlation_id,
-        "source": "core-business-service",
-        "severity": "HIGH",
-        "alertVersion": 1,
-        "occurredAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "data": {
-            "title": "Cảnh báo Bruteforce",
-            "message": message,
-            "source": "access-gate",
-            "alertLevel": "HIGH"
-        },
-        "channels": ["telegram"]
+def _publish_security_alert(reason_code: str, card_id: str, gate_id: str) -> None:
+    """
+    Dua canh bao bao mat len topic MQTT chuan de A7 nhan.
+    Thay the REST call sang A7 (tuan thu kien truc event-driven cua he thong).
+    """
+    alert_payload = {
+        "event_type": "core.alert.created",
+        "source_service": "team-core",
+        "alert_id": f"ALT-{uuid.uuid4().hex[:8].upper()}",
+        "alert_type": "access_violation",
+        "severity": "high",
+        "message": f"Vi pham quet the ({reason_code}) cho the {card_id} tai cong {gate_id}",
+        "card_id": card_id,
+        "gate_id": gate_id,
+        "reason_code": reason_code,
+        "target": "security_team",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {AUTH_TOKEN}"
-    }
-
-    url = f"{NOTIFICATION_SERVICE_URL.rstrip('/')}/events/alert.created"
-    print(f"Sending alert to Notification Service: {url} with payload: {payload}")
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=3.0)
-        if response.status_code == 202:
-            print(f"Đã gọi API gửi thông báo sang A7 thành công (Mã: {response.status_code} Accepted)")
-        else:
-            response.raise_for_status()
-            print(f"Alert sent successfully. Response: {response.status_code}")
-    except requests.exceptions.Timeout:
-        print(f"Error: Timeout sending alert to Notification Service (A7) at {url}")
-    except requests.exceptions.RequestException as e:
-        print(f"Error: Failed to send alert to Notification Service: {str(e)}")
+    publish_alert(alert_payload)
+    print(f"[Alert] Published MQTT alert: reason={reason_code} card={card_id} gate={gate_id}")
 
 
 def build_problem(
@@ -251,6 +310,69 @@ def health() -> dict:
     }
 
 
+def check_gate_policy(gate_id: str, card_id: str) -> Optional[str]:
+    # Kiem tra trang thai cong tu PostgreSQL
+    rows = execute_db_query("SELECT status FROM gates WHERE gate_id = %s;", (gate_id,), fetch=True)
+    if not rows:
+        return "GATE_NOT_FOUND"
+    status_str = rows[0][0]
+    if status_str == "LOCKED":
+        _publish_security_alert("GATE_LOCKED", card_id, gate_id)
+        return "GATE_LOCKED"
+    return None
+
+
+def check_card_validity(card_id: str, gate_id: str) -> Optional[str]:
+    # Kiem tra the co ton tai trong DB khong
+    rows = execute_db_query("SELECT 1 FROM cards WHERE card_id = %s;", (card_id,), fetch=True)
+    if not rows:
+        _publish_security_alert("CARD_NOT_FOUND", card_id, gate_id)
+        return "CARD_NOT_FOUND"
+    return None
+
+
+def check_card_expiration(card_id: str, gate_id: str, timestamp: str) -> Optional[str]:
+    # Kiem tra han su dung cua the
+    rows = execute_db_query("SELECT expires_at, status FROM cards WHERE card_id = %s;", (card_id,), fetch=True)
+    if not rows:
+        return None
+    expires_at_str, status_str = rows[0]
+    try:
+        expires_str = expires_at_str.replace("Z", "+00:00")
+        expires_dt = datetime.fromisoformat(expires_str)
+
+        event_str = timestamp.replace("Z", "+00:00") if timestamp.endswith("Z") else timestamp
+        event_dt = datetime.fromisoformat(event_str)
+
+        if event_dt > expires_dt or status_str == "EXPIRED":
+            _publish_security_alert("CARD_EXPIRED", card_id, gate_id)
+            return "CARD_EXPIRED"
+    except Exception as e:
+        print(f"[Error] Loi phan tich han su dung: {e}")
+    return None
+
+
+def check_card_status(card_id: str, gate_id: str) -> Optional[str]:
+    # Kiem tra the bi khoa
+    rows = execute_db_query("SELECT status FROM cards WHERE card_id = %s;", (card_id,), fetch=True)
+    if not rows:
+        return None
+    status_str = rows[0][0]
+    if status_str == "BLOCKED":
+        _publish_security_alert("CARD_BLOCKED", card_id, gate_id)
+        return "CARD_BLOCKED"
+    return None
+
+
+def check_schedule_policy(card_id: str, gate_id: str, timestamp: str) -> Optional[str]:
+    # Kiem tra gio ra vao co hop le khong
+    from event_handlers import is_outside_hours
+    if is_outside_hours(timestamp):
+        _publish_security_alert("OUT_OF_SCHEDULE", card_id, gate_id)
+        return "OUT_OF_SCHEDULE"
+    return None
+
+
 @app.post(
     "/access/check",
     response_model=AccessCheckResponse,
@@ -272,65 +394,46 @@ def access_check(
     print(f"[INFO] Timestamp:  {payload.timestamp}")
     print(f"[INFO] =====================================\n")
 
-    # 1. Giả lập lỗi qua Prefer header hoặc payload values để tương thích Postman tests
-    # Kiểm tra trường hợp CARD_EXPIRED
-    is_expired = False
-    if prefer and "example=successExpired" in prefer:
-        is_expired = True
-    elif "2029" in payload.timestamp:
-        is_expired = True
+    err = None
+    
+    # 1. Kiem tra cong
+    err = check_gate_policy(payload.gateId, payload.cardId)
+    if err == "GATE_NOT_FOUND":
+        raise HTTPException(status_code=404, detail=f"Gate {payload.gateId} not found")
+        
+    # 2. Kiem tra the hop le
+    if not err:
+        err = check_card_validity(payload.cardId, payload.gateId)
+    # 3. Kiem tra the het han
+    if not err:
+        err = check_card_expiration(payload.cardId, payload.gateId, payload.timestamp)
+    # 4. Kiem tra the bi khoa
+    if not err:
+        err = check_card_status(payload.cardId, payload.gateId)
+    # 5. Kiem tra gio ra vao
+    if not err:
+        err = check_schedule_policy(payload.cardId, payload.gateId, payload.timestamp)
 
-    # Kiểm tra trường hợp GATE_LOCKED
-    is_locked = False
-    if prefer and "example=successLocked" in prefer:
-        is_locked = True
-    elif payload.requestId.endswith("cb02"):
-        is_locked = True
+    # Ghi nhan ket qua vao DB
+    insert_sql = """
+    INSERT INTO decisions (decision_id, card_id, gate_id, allow, reason_code, timestamp)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    ON CONFLICT (decision_id) DO UPDATE 
+    SET allow = EXCLUDED.allow, reason_code = EXCLUDED.reason_code, timestamp = EXCLUDED.timestamp;
+    """
+    
+    if err:
+        execute_db_query(insert_sql, (payload.requestId, payload.cardId, payload.gateId, False, err, payload.timestamp))
+        return AccessCheckResponse(decisionId=payload.requestId, allow=False, reasonCode=err, policyId="POL-101", expiresAt="2026-06-01T10:00:05Z")
 
-    # Kiểm tra trường hợp OUT_OF_SCHEDULE
-    is_out_of_schedule = False
-    if prefer and "example=successDenied" in prefer:
-        is_out_of_schedule = True
-    elif "02:00:00" in payload.timestamp:
-        is_out_of_schedule = True
-
-    # 2. Xây dựng response tương ứng
-    if is_expired:
-        send_alert_to_notification("CARD_EXPIRED", payload.cardId, payload.gateId)
-        return AccessCheckResponse(
-            decisionId="0196fb3d-4ad7-7d1e-9f49-5d5148d2cafb",
-            allow=False,
-            reasonCode="CARD_EXPIRED",
-            policyId="POL-101",
-            expiresAt="2026-06-01T10:00:05Z",
-        )
-    elif is_locked:
-        send_alert_to_notification("GATE_LOCKED", payload.cardId, payload.gateId)
-        return AccessCheckResponse(
-            decisionId="0196fb3d-4ad7-7d1e-9f49-5d5148d2cafc",
-            allow=False,
-            reasonCode="GATE_LOCKED",
-            policyId="POL-101",
-            expiresAt="2026-06-01T10:00:05Z",
-        )
-    elif is_out_of_schedule:
-        send_alert_to_notification("OUT_OF_SCHEDULE", payload.cardId, payload.gateId)
-        return AccessCheckResponse(
-            decisionId="0196fb3d-4ad7-7d1e-9f49-5d5148d2caf0",
-            allow=False,
-            reasonCode="OUT_OF_SCHEDULE",
-            policyId="POL-101",
-            expiresAt="2026-06-01T10:00:05Z",
-        )
-    else:
-        # Happy path ALLOWED
-        return AccessCheckResponse(
-            decisionId="0196fb3d-4ad7-7d1e-9f49-5d5148d2caff",
-            allow=True,
-            reasonCode="ALLOWED",
-            policyId="POL-101",
-            expiresAt="2026-06-01T10:00:05Z",
-        )
+    execute_db_query(insert_sql, (payload.requestId, payload.cardId, payload.gateId, True, "ALLOWED", payload.timestamp))
+    return AccessCheckResponse(
+        decisionId=payload.requestId,
+        allow=True,
+        reasonCode="ALLOWED",
+        policyId="POL-101",
+        expiresAt="2026-06-01T10:00:05Z",
+    )
 
 
 @app.get(
@@ -375,26 +478,17 @@ def get_policy(
     },
 )
 def get_decision(decision_id: str) -> Dict:
-    # Trả về quyết định mock dựa theo ID
-    allow = True
-    reason_code = "ALLOWED"
-    if decision_id == "0196fb3d-4ad7-7d1e-9f49-5d5148d2caf0":
-        allow = False
-        reason_code = "OUT_OF_SCHEDULE"
-    elif decision_id == "0196fb3d-4ad7-7d1e-9f49-5d5148d2cafb":
-        allow = False
-        reason_code = "CARD_EXPIRED"
-    elif decision_id == "0196fb3d-4ad7-7d1e-9f49-5d5148d2cafc":
-        allow = False
-        reason_code = "GATE_LOCKED"
-
-    return {
-        "decisionId": decision_id,
-        "cardId": "CARD-123456",
-        "gateId": "GATE-01",
-        "allow": allow,
-        "reasonCode": reason_code,
-    }
+    rows = execute_db_query("SELECT card_id, gate_id, allow, reason_code FROM decisions WHERE decision_id = %s;", (decision_id,), fetch=True)
+    if rows:
+        card_id, gate_id, allow, reason_code = rows[0]
+        return {
+            "decisionId": decision_id,
+            "cardId": card_id,
+            "gateId": gate_id,
+            "allow": allow,
+            "reasonCode": reason_code,
+        }
+    raise HTTPException(status_code=404, detail="Decision not found")
 
 
 @app.get(

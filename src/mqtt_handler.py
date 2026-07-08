@@ -38,12 +38,11 @@ def _broadcast(payload: dict) -> None:
 
 
 def publish_alert(alert: dict) -> None:
+    """Publish canh bao len topic MQTT chuan de A7 nhan va broadcast xuong Dashboard."""
     if _mqtt_client and _mqtt_client.is_connected():
         raw = json.dumps(alert)
+        # Chi publish dung topic chuẩn, tranh gay nhieu cho A7 va Analytics
         _mqtt_client.publish(TOPIC_ALERT, raw)
-        # Publish dong thoi len topic co chu s cho Analytics (A5)
-        _mqtt_client.publish("smart-campus/events/alerts", raw)
-        _mqtt_client.publish(TOPIC_POLICY, raw)
         logger.info(f"[MQTT] Published alert: {alert.get('alert_type')}")
 
     # Broadcast alert len Dashboard
