@@ -36,6 +36,9 @@
     --border-row:     rgba(255, 255, 255, 0.05);
     --bg-btn-json:    rgba(99, 102, 241, 0.1);
     --text-btn-json:  #a5b4fc;
+    
+    --scrollbar-thumb: rgba(99, 102, 241, 0.25);
+    --scrollbar-thumb-hover: rgba(99, 102, 241, 0.55);
 }
 
 body.light-theme {
@@ -68,6 +71,9 @@ body.light-theme {
     --border-row:     rgba(0, 0, 0, 0.06);
     --bg-btn-json:    rgba(99, 102, 241, 0.08);
     --text-btn-json:  var(--brand-indigo);
+    
+    --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
 }
 
 /* ===== GLOBAL ===== */
@@ -75,6 +81,31 @@ body.light-theme {
     box-sizing: border-box; 
     margin: 0; 
     padding: 0; 
+}
+
+/* Custom Scrollbar toan cuc */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 body { 
@@ -471,6 +502,28 @@ body::after {
     display: flex; 
     flex-direction: column; 
     padding: 16px 0; 
+    
+    /* Custom Scrollbar for Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* Custom Scrollbar for Chrome, Safari, Edge */
+.feed-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+.feed-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.feed-wrapper::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 99px;
+}
+
+.feed-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
 }
 
 .empty-feed { 
@@ -809,6 +862,26 @@ body::after {
     background: #070a13; 
     max-height: 60vh; 
     overflow-y: auto; 
+    
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.json-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.json-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.json-body::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 99px;
+}
+
+.json-body::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
 }
 
 .json-body pre { 
