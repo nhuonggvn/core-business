@@ -236,6 +236,12 @@ def _send_to_a7_rest(
         "severity": severity,
         "alertVersion": 1,
         "occurredAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "payload": {
+            "title": title,
+            "message": message,
+            "source": source,
+            "alertLevel": alert_level,
+        },
         "data": {
             "title": title,
             "message": message,
@@ -250,7 +256,7 @@ def _send_to_a7_rest(
             url,
             json=payload,
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {AUTH_TOKEN}"},
-            timeout=3.0,
+            timeout=10.0,
         )
         if resp.status_code == 202:
             print(f"[A7] Da gui thanh cong sang A7: {event_type} | alert_id={alert_id}")

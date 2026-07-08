@@ -81,6 +81,12 @@ def _send_alert_to_a7(alert: dict) -> None:
         "severity": severity_raw,
         "alertVersion": 1,
         "occurredAt": alert.get("timestamp", ""),
+        "payload": {
+            "title": title,
+            "message": message,
+            "source": source,
+            "alertLevel": severity_raw,
+        },
         "data": {
             "title": title,
             "message": message,
@@ -95,10 +101,10 @@ def _send_alert_to_a7(alert: dict) -> None:
     }
     try:
         resp = requests.post(
-            url,
+            f"{NOTIFICATION_SERVICE_URL}/events/alert.created",
             json=payload,
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {AUTH_TOKEN}"},
-            timeout=3.0,
+            timeout=10.0,
         )
         if resp.status_code == 202:
             logger.info(f"[A7] Gui thanh cong: alert_type={alert_type} alert_id={alert_id}")
